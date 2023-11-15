@@ -1,5 +1,5 @@
 resource "google_cloud_run_v2_service" "default" {
-  provider     = google-beta
+  provider = google-beta
 
   name         = var.service.name
   location     = var.service.location
@@ -20,7 +20,7 @@ resource "google_cloud_run_v2_service" "default" {
       }
     }
   }
-  
+
   lifecycle {
     ignore_changes = [
       launch_stage,

@@ -1,6 +1,6 @@
 module "cloudrun" {
-  source      = "../../"
-  containers  = [
+  source = "../../"
+  containers = [
     {
       name           = "first"
       container_port = 8080
@@ -22,7 +22,7 @@ module "cloudrun" {
       }
     }
   ]
-  service={
+  service = {
     name         = "cloudrun-service"
     location     = "us-central1"
     launch_stage = "BETA"

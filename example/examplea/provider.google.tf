@@ -1,7 +1,7 @@
 provider "google" {
-    project = "pike-gcp"
+  project = "pike-gcp"
 }
 
 provider "google-beta" {
-    project = "pike-gcp"
+  project = "pike-gcp"
 }
