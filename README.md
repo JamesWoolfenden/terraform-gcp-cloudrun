@@ -51,12 +51,15 @@ No modules.
 
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
-| <a name="input_containers"></a> [containers](#input\_containers) | Cloud Run containers | <pre>list(object({<br>    name           = string<br>    container_port = number<br>    image          = string<br>    depends_on     = list(string)<br>    volume_mounts = object({<br>      name       = string<br>      mount_path = string<br>    })<br>  }))</pre> | n/a | yes |
+| <a name="input_containers"></a> [containers](#input\_containers) | Cloud Run containers | <pre>list(object({<br>    name           = string<br>    container_port = number<br>    image          = string<br>    depends_on     = list(string)<br>    env            = map(string)<br>    volume_mounts = object({<br>      name       = string<br>      mount_path = string<br>    })<br>  }))</pre> | n/a | yes |
+| <a name="input_labels"></a> [labels](#input\_labels) | labels/tags | `map(string)` | n/a | yes |
 | <a name="input_service"></a> [service](#input\_service) | n/a | <pre>object({<br>    name         = string<br>    location     = string<br>    launch_stage = string<br>    ingress      = string<br>  })</pre> | n/a | yes |
 
 ## Outputs
 
-No outputs.
+| Name | Description |
+|------|-------------|
+| <a name="output_service"></a> [service](#output\_service) | n/a |
 <!-- END OF PRE-COMMIT-TERRAFORM DOCS HOOK -->
 
 ## Information

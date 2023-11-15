@@ -2,20 +2,13 @@ module "cloudrun" {
   source = "../../"
   containers = [
     {
-      name           = "first"
-      container_port = 8080
+      name           = "backend"
+      container_port = 80
       image          = "nginx"
       depends_on     = null
-      volume_mounts = {
-        name       = "empty-dir-volume"
-        mount_path = "/mnt"
+      env = {
+        name = "frontend"
       }
-    },
-    {
-      name           = "second"
-      container_port = 8081
-      image          = "nginx"
-      depends_on     = null
       volume_mounts = {
         name       = "empty-dir-volume"
         mount_path = "/mnt"
@@ -27,5 +20,9 @@ module "cloudrun" {
     location     = "us-central1"
     launch_stage = "BETA"
     ingress      = "INGRESS_TRAFFIC_ALL"
+  }
+
+  labels = {
+    pike = "permissions"
   }
 }
