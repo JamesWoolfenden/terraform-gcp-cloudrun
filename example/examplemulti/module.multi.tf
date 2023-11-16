@@ -1,5 +1,6 @@
 module "frontend" {
-  source = "../../"
+  source  = "../../"
+  project = "pike-gcp"
   containers = [
     {
       name           = "frontend"
@@ -29,7 +30,8 @@ module "frontend" {
 }
 
 module "backend" {
-  source = "../../"
+  source  = "../../"
+  project = "pike-gcp"
   containers = [
     {
       name           = "backend"

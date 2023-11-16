@@ -27,3 +27,7 @@ variable "labels" {
   type        = map(string)
   description = "labels/tags"
 }
+
+variable "project" {
+  type = string
+}

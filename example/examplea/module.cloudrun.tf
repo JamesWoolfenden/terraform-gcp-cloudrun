@@ -1,5 +1,6 @@
 module "cloudrun" {
-  source = "../../"
+  source  = "../../"
+  project = "pike-gcp"
   containers = [
     {
       name           = "backend"

@@ -5,6 +5,7 @@ resource "google_cloud_run_v2_service" "default" {
   location     = var.service.location
   launch_stage = var.service.launch_stage
   ingress      = var.service.ingress
+  project      = var.project
 
   template {
     dynamic "containers" {
