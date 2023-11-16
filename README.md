@@ -55,6 +55,7 @@ No modules.
 | <a name="input_labels"></a> [labels](#input\_labels) | labels/tags | `map(string)` | n/a | yes |
 | <a name="input_project"></a> [project](#input\_project) | n/a | `string` | n/a | yes |
 | <a name="input_service"></a> [service](#input\_service) | n/a | <pre>object({<br>    name         = string<br>    location     = string<br>    launch_stage = string<br>    ingress      = string<br>  })</pre> | n/a | yes |
+| <a name="input_service_account"></a> [service\_account](#input\_service\_account) | n/a | `string` | n/a | yes |
 
 ## Outputs
 
