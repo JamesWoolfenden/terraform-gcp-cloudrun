@@ -1,6 +1,7 @@
+# holden:ignore:HLD_TF_026 — examples intentionally use ../../ to reference the local module root
 module "frontend" {
   source          = "../../"
-  project         = "pike-gcp"
+  project         = "pike-477416"
   service_account = null
   containers = [
     {
@@ -32,7 +33,7 @@ module "frontend" {
 
 module "backend" {
   source          = "../../"
-  project         = "pike-gcp"
+  project         = "pike-477416"
   service_account = null
   containers = [
     {
