@@ -1,0 +1,26 @@
+id: HLD_PROPOSED_001
+name: Cloud Run v2 services must have an explicit service account configured
+principle: identity-and-access
+severity: HIGH
+rationale: |
+  A Cloud Run v2 service with no explicit template.service_account runs as the
+  Compute Engine default service account, which typically holds project-wide Editor
+  permissions. Least-privilege requires each service to run under a dedicated SA
+  with only the permissions it needs. Requiring a non-null service account at the
+  IaC level prevents accidental broad-privilege deployments and complements
+  HLD_GCP_084, which checks the value is not the default SA email but cannot
+  catch a null that resolves to the default at runtime.
+remediation: |
+  Set template.service_account to the email of a dedicated, least-privilege service
+  account:
+  ```hcl
+  resource "google_cloud_run_v2_service" "main" {
+    template {
+      service_account = google_service_account.run_sa.email
+    }
+  }
+  ```
+resources:
+  google_cloud_run_v2_service:
+    path: template.service_account
+    not_null: true

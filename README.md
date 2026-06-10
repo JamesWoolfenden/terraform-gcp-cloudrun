@@ -6,6 +6,7 @@
 ![Terraform Version](https://img.shields.io/badge/tf-%3E%3D0.14.0-blue.svg)
 [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white)](https://github.com/pre-commit/pre-commit)
 [![checkov](https://img.shields.io/badge/checkov-verified-brightgreen)](https://www.checkov.io/)
+
 ## Usage
 
 Add **module.cloudrun.tf** to your code:-
@@ -32,7 +33,7 @@ No requirements.
 
 | Name | Version |
 | ---- | ------- |
-| <a name="provider_google-beta"></a> [google-beta](#provider\_google-beta) | n/a |
+| <a name="provider_google"></a> [google](#provider\_google) | n/a |
 
 ## Modules
 
@@ -42,23 +43,26 @@ No modules.
 
 | Name | Type |
 | ---- | ---- |
-| [google-beta_google_cloud_run_v2_service.default](https://registry.terraform.io/providers/hashicorp/google-beta/latest/docs/resources/google_cloud_run_v2_service) | resource |
+| [google_cloud_run_v2_service.default](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/cloud_run_v2_service) | resource |
 
 ## Inputs
 
 | Name | Description | Type | Default | Required |
 | ---- | ----------- | ---- | ------- | :------: |
-| <a name="input_containers"></a> [containers](#input\_containers) | Cloud Run containers | <pre>list(object({<br/>    name           = string<br/>    container_port = number<br/>    image          = string<br/>    depends_on     = list(string)<br/>    env            = map(string)<br/>    volume_mounts = object({<br/>      name       = string<br/>      mount_path = string<br/>    })<br/>  }))</pre> | n/a | yes |
-| <a name="input_labels"></a> [labels](#input\_labels) | labels/tags | `map(string)` | n/a | yes |
-| <a name="input_project"></a> [project](#input\_project) | n/a | `string` | n/a | yes |
-| <a name="input_service"></a> [service](#input\_service) | n/a | <pre>object({<br/>    name         = string<br/>    location     = string<br/>    launch_stage = string<br/>    ingress      = string<br/>  })</pre> | n/a | yes |
-| <a name="input_service_account"></a> [service\_account](#input\_service\_account) | n/a | `string` | n/a | yes |
+| <a name="input_containers"></a> [containers](#input\_containers) | Cloud Run containers | <pre>list(object({<br/>    name           = string<br/>    container_port = number<br/>    image          = string<br/>    depends_on     = list(string)<br/>    env            = map(string)<br/>    secret_env = optional(list(object({<br/>      name    = string<br/>      secret  = string<br/>      version = string<br/>    })), [])<br/>    volume_mounts = optional(object({<br/>      name       = string<br/>      mount_path = string<br/>    }))<br/>  }))</pre> | n/a | yes |
+| <a name="input_encryption_key"></a> [encryption\_key](#input\_encryption\_key) | KMS key resource name for CMEK encryption of container instances; if null uses Google-managed key | `string` | n/a | yes |
+| <a name="input_project"></a> [project](#input\_project) | GCP project ID | `string` | n/a | yes |
+| <a name="input_service"></a> [service](#input\_service) | Cloud Run service configuration | <pre>object({<br/>    name         = string<br/>    location     = string<br/>    launch_stage = string<br/>    ingress      = string<br/>  })</pre> | n/a | yes |
+| <a name="input_service_account"></a> [service\_account](#input\_service\_account) | Service account email to run the Cloud Run service as | `string` | n/a | yes |
+| <a name="input_volumes"></a> [volumes](#input\_volumes) | Template-level volumes; each name must be referenced by a container volume\_mounts entry | <pre>list(object({<br/>    name = string<br/>    empty_dir = optional(object({<br/>      medium     = optional(string, "MEMORY")<br/>      size_limit = optional(string)<br/>    }))<br/>  }))</pre> | `[]` | no |
+| <a name="input_vpc_connector"></a> [vpc\_connector](#input\_vpc\_connector) | VPC connector ID for Cloud Run VPC egress; if null the vpc\_access block is omitted | `string` | n/a | yes |
+| <a name="input_vpc_egress"></a> [vpc\_egress](#input\_vpc\_egress) | VPC Access Connector egress setting; PRIVATE\_RANGES\_ONLY routes only RFC-1918 traffic through the connector, ALL\_TRAFFIC forces all egress through VPC (requires Cloud NAT for internet access) | `string` | `"PRIVATE_RANGES_ONLY"` | no |
 
 ## Outputs
 
 | Name | Description |
 | ---- | ----------- |
-| <a name="output_service"></a> [service](#output\_service) | n/a |
+| <a name="output_service"></a> [service](#output\_service) | The Cloud Run service resource |
 <!-- END OF PRE-COMMIT-TERRAFORM DOCS HOOK -->
 
 ## Information

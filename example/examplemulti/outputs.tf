@@ -1,7 +1,9 @@
 output "backend" {
-  value = module.backend
+  description = "Backend module outputs"
+  value       = module.backend
 }
 
 output "frontend" {
-  value = module.frontend
+  description = "Frontend module outputs"
+  value       = module.frontend
 }

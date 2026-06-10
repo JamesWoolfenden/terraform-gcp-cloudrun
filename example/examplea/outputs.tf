@@ -1,3 +1,4 @@
 output "backend" {
-  value = module.cloudrun
+  description = "The CloudRun module outputs"
+  value       = module.cloudrun
 }

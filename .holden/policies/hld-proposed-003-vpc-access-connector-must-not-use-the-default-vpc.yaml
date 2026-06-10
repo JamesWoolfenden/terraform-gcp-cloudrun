@@ -1,0 +1,25 @@
+id: HLD_PROPOSED_003
+name: VPC Access Connector must not use the default VPC network
+principle: network-security
+severity: HIGH
+rationale: |
+  A VPC Access Connector attached to the default VPC network routes serverless
+  egress traffic into a shared, unmanaged network that typically has permissive
+  firewall rules and auto-created subnets. Connectors should attach to explicitly
+  managed VPC networks with controlled topology and firewall rules, consistent
+  with the requirement that GCE instances (HLD_GCP_091) and the default VPC itself
+  (HLD_GCP_012) must not use the GCP default network.
+remediation: |
+  Attach the connector to an explicitly managed VPC network:
+  ```hcl
+  resource "google_vpc_access_connector" "main" {
+    network = google_compute_network.vpc.name  # not "default"
+    ...
+  }
+  ```
+resources:
+  google_vpc_access_connector:
+    path: network
+    # requires DSL extension: not_equals operator
+    # not_equals: "default"
+    not_null: true

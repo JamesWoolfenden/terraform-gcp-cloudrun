@@ -1,0 +1,42 @@
+{
+  "findings": [
+    {
+      "confidence": "high",
+      "explanation": "The module call sets vpc_connector (triggering egress = ALL_TRAFFIC in the vpc_access block), which routes all Cloud Run outbound traffic through the VPC connector into the VPC. The VPC is created with delete_default_routes_on_create = true, which removes the 0.0.0.0/0 internet gateway route. With no Cloud NAT and no Private Google Access subnet, the connector VMs have no route for external destinations \u2014 any outbound call from the Cloud Run service to external IPs or GCP service endpoints is silently dropped. The same issue exists in example/examplemulti/module.multi.tf for both the frontend and backend modules. A real application using this example as a template would lose all outbound connectivity without an obvious error in the Terraform plan.",
+      "file": "example/examplea/module.cloudrun.tf",
+      "id": "HOLDEN_AI_001",
+      "line": 44,
+      "principle": "reliability",
+      "related_resources": [
+        "google_compute_network.cloudrun",
+        "google_vpc_access_connector.cloudrun"
+      ],
+      "remediation": "Add a google_compute_router and google_compute_router_nat to the VPC to provide controlled internet egress for the connector, or change vpc_access egress to PRIVATE_RANGES_ONLY so only RFC-1918-destined traffic routes through the VPC while internet traffic goes direct. Also add a google_compute_subnetwork with private_ip_google_access = true so GCP APIs remain reachable via private endpoints.",
+      "resource": "module.cloudrun",
+      "severity": "HIGH",
+      "title": "egress = ALL_TRAFFIC through a VPC with no internet route and no Cloud NAT silently drops all outbound connections"
+    },
+    {
+      "confidence": "high",
+      "explanation": "The examplemulti firewall uses allow { protocol = 'all' }, permitting UDP, ICMP, SCTP, and every other protocol from the 10.8.0.0/28 connector range. The examplea firewall correctly restricts to protocol = 'tcp'. VPC Access Connector traffic is always TCP; no other protocols transit the connector. HLD_GCP_128 only fires for protocol = 'all' with internet source ranges (0.0.0.0/0), so an internal-range all-protocol rule passes the engine. If the VPC is later peered or connected via VPN, the 10.8.0.0/28 range could become reachable from unexpected hosts, and the all-protocol rule would expose the full surface.",
+      "file": "example/examplemulti/module.multi.tf",
+      "id": "HOLDEN_AI_002",
+      "line": 47,
+      "principle": "network-security",
+      "related_resources": [
+        "google_compute_firewall.cloudrun"
+      ],
+      "remediation": "Change allow { protocol = 'all' } to allow { protocol = 'tcp' } in the examplemulti firewall rule to match examplea and restrict to the protocol the connector actually uses.",
+      "resource": "google_compute_firewall.cloudrun_internal",
+      "severity": "MEDIUM",
+      "title": "examplemulti firewall allows protocol = all from connector range; examplea restricts to TCP \u2014 inconsistent and over-permissive"
+    }
+  ],
+  "suggested_policies": [
+    {
+      "rationale": "google_vpc_access_connector has no holden coverage at all. The most impactful deterministic check is that the connector must not attach to the default VPC network ('default'), which would undermine network isolation. This parallels HLD_GCP_012 (default VPC must not be used) and HLD_GCP_091 (GCE instances must not use the default VPC). Checking network != 'default' requires a not_equals operator not currently in the DSL.",
+      "requires_dsl_extension": true,
+      "yaml": "id: HLD_PROPOSED_003\nname: VPC Access Connector must not use the default VPC network\nprinciple: network-security\nseverity: HIGH\nrationale: |\n  A VPC Access Connector attached to the default VPC network routes serverless\n  egress traffic into a shared, unmanaged network that typically has permissive\n  firewall rules and auto-created subnets. Connectors should attach to explicitly\n  managed VPC networks with controlled topology and firewall rules, consistent\n  with the requirement that GCE instances (HLD_GCP_091) and the default VPC itself\n  (HLD_GCP_012) must not use the GCP default network.\nremediation: |\n  Attach the connector to an explicitly managed VPC network:\n  ```hcl\n  resource \"google_vpc_access_connector\" \"main\" {\n    network = google_compute_network.vpc.name  # not \"default\"\n    ...\n  }\n  ```\nresources:\n  google_vpc_access_connector:\n    path: network\n    # requires DSL extension: not_equals operator\n    # not_equals: \"default\"\n    not_null: true\n"
+    }
+  ]
+}

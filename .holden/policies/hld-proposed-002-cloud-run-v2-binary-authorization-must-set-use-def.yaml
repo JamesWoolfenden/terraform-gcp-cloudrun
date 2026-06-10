@@ -1,0 +1,27 @@
+id: HLD_PROPOSED_002
+name: Cloud Run v2 binary_authorization must set use_default true to enforce policy not bypass it
+principle: supply-chain
+severity: HIGH
+rationale: |
+  In Cloud Run v2, binary_authorization { breakglass_justification = '...' } is a
+  bypass mechanism that logs the justification but skips policy enforcement entirely.
+  Setting only breakglass_justification without use_default = true means every
+  deployment circumvents binary authorization. The enforcement path requires
+  use_default = true, which applies the project- or platform-level binary
+  authorization policy to all container images before deployment.
+remediation: |
+  Set use_default = true in the binary_authorization block to enforce the
+  platform policy:
+  ```hcl
+  resource "google_cloud_run_v2_service" "main" {
+    template {
+      binary_authorization {
+        use_default = true
+      }
+    }
+  }
+  ```
+resources:
+  google_cloud_run_v2_service:
+    path: template.binary_authorization.use_default
+    equals: true
