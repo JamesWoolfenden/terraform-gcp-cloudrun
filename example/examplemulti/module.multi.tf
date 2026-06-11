@@ -28,36 +28,10 @@ resource "google_kms_crypto_key" "cloudrun" {
   }
 }
 
-resource "google_compute_network" "cloudrun" {
-  project                         = "pike-477416"
-  name                            = "cloudrun-vpc"
-  auto_create_subnetworks         = false
-  delete_default_routes_on_create = true
-}
-
-resource "google_compute_firewall" "cloudrun_internal" {
+data "google_vpc_access_connector" "cloudrun" {
   project = "pike-477416"
-  name    = "cloudrun-internal-firewall"
-  network = google_compute_network.cloudrun.id
-
-  allow {
-    protocol = "tcp"
-  }
-
-  log_config {
-    metadata = "INCLUDE_ALL_METADATA"
-  }
-
-  source_ranges = ["10.8.0.0/28"]
-  direction     = "INGRESS"
-}
-
-resource "google_vpc_access_connector" "cloudrun" {
-  project       = "pike-477416"
-  name          = "cloudrun-connector"
-  region        = "us-central1"
-  network       = google_compute_network.cloudrun.name
-  ip_cidr_range = "10.8.0.0/28"
+  name    = "cloudrun-connector"
+  region  = "us-central1"
 }
 
 resource "google_kms_crypto_key_iam_member" "cloudrun_sa" {
@@ -71,7 +45,7 @@ module "frontend" {
   project         = "pike-477416"
   service_account = google_service_account.frontend.email
   encryption_key  = google_kms_crypto_key.cloudrun.id
-  vpc_connector   = google_vpc_access_connector.cloudrun.id
+  vpc_connector   = data.google_vpc_access_connector.cloudrun.id
   containers = [
     {
       name           = "frontend"
@@ -107,7 +81,7 @@ module "backend" {
   project         = "pike-477416"
   service_account = google_service_account.backend.email
   encryption_key  = google_kms_crypto_key.cloudrun.id
-  vpc_connector   = google_vpc_access_connector.cloudrun.id
+  vpc_connector   = data.google_vpc_access_connector.cloudrun.id
   containers = [
     {
       name           = "backend"
