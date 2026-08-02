@@ -105,9 +105,141 @@ variable "vpc_egress" {
 variable "encryption_key" {
   type        = string
   description = "KMS key resource name for CMEK encryption of container instances; if null uses Google-managed key"
+  sensitive   = true
 
   validation {
     condition     = var.encryption_key == null || length(trimspace(var.encryption_key)) > 0
     error_message = "encryption_key must be a non-empty string or null"
+  }
+}
+
+variable "min_instance_count" {
+  type        = number
+  default     = null
+  description = "Minimum number of container instances to keep warm; null allows scale-to-zero (default Cloud Run behavior)"
+
+  validation {
+    condition     = var.min_instance_count == null || var.min_instance_count >= 0
+    error_message = "min_instance_count must be a non-negative number or null"
+  }
+}
+
+variable "max_instance_count" {
+  type        = number
+  default     = null
+  description = "Maximum number of container instances Cloud Run may scale to; null uses the project default (no per-service ceiling)"
+
+  validation {
+    condition     = var.max_instance_count == null || var.max_instance_count > 0
+    error_message = "max_instance_count must be a positive number or null"
+  }
+}
+
+variable "startup_probe" {
+  type = object({
+    initial_delay_seconds = optional(number)
+    timeout_seconds       = optional(number)
+    period_seconds        = optional(number)
+    failure_threshold     = optional(number)
+    http_get = optional(object({
+      path = optional(string)
+      port = optional(number)
+      http_headers = optional(list(object({
+        name  = string
+        value = optional(string)
+      })), [])
+    }))
+    tcp_socket = optional(object({
+      port = optional(number)
+    }))
+    grpc = optional(object({
+      port    = optional(number)
+      service = optional(string)
+    }))
+  })
+  default     = null
+  description = "Startup probe applied to the primary (first) container; null uses Cloud Run's default TCP-open probe. Set exactly one of http_get, tcp_socket, or grpc."
+
+  validation {
+    condition = var.startup_probe == null || length(compact([
+      var.startup_probe.http_get != null ? "http_get" : "",
+      var.startup_probe.tcp_socket != null ? "tcp_socket" : "",
+      var.startup_probe.grpc != null ? "grpc" : "",
+    ])) == 1
+    error_message = "startup_probe must set exactly one of http_get, tcp_socket, or grpc"
+  }
+}
+
+variable "liveness_probe" {
+  type = object({
+    initial_delay_seconds = optional(number)
+    timeout_seconds       = optional(number)
+    period_seconds        = optional(number)
+    failure_threshold     = optional(number)
+    http_get = optional(object({
+      path = optional(string)
+      port = optional(number)
+      http_headers = optional(list(object({
+        name  = string
+        value = optional(string)
+      })), [])
+    }))
+    grpc = optional(object({
+      port    = optional(number)
+      service = optional(string)
+    }))
+    tcp_socket = optional(object({
+      port = optional(number)
+    }))
+  })
+  default     = null
+  description = "Liveness probe applied to the primary (first) container; null means no liveness probe is configured (Cloud Run relies on the container staying up, with no active restart-on-hang check)."
+
+  validation {
+    condition = var.liveness_probe == null || length(compact([
+      var.liveness_probe.http_get != null ? "http_get" : "",
+      var.liveness_probe.tcp_socket != null ? "tcp_socket" : "",
+      var.liveness_probe.grpc != null ? "grpc" : "",
+    ])) <= 1
+    error_message = "liveness_probe must set at most one of http_get, tcp_socket, or grpc"
+  }
+}
+
+variable "private_check_endpoint" {
+  type = object({
+    ip                         = string
+    port                       = number
+    network                    = string
+    service_directory_location = string
+  })
+  default     = null
+  description = <<-EOT
+    Optional private target for a VPC-based (VPC_CHECKERS) uptime check,
+    used only when service.ingress is not INGRESS_TRAFFIC_ALL. Point it at
+    the internal IP:port of whatever fronts this service on the private
+    network - an internal Application Load Balancer forwarding rule (for
+    INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER) or a Private Service Connect
+    endpoint (for INGRESS_TRAFFIC_INTERNAL_ONLY). This module registers that
+    endpoint in Service Directory and points the uptime check at it; it does
+    not create the load balancer/PSC endpoint itself, since it doesn't own
+    that network topology.
+
+    `network` is the target VPC's self-link in the form
+    projects/PROJECT_NUMBER/locations/global/networks/NETWORK_NAME.
+    `service_directory_location` is the region for the Service Directory
+    namespace, e.g. "us-central1" - typically the same region as the service.
+
+    The caller must separately allow inbound TCP from 35.199.192.0/19 on
+    that network, and grant the Cloud Monitoring service agent
+    roles/servicedirectory.viewer and roles/servicedirectory.pscAuthorizedService
+    - this module does not manage that network's firewall rules or IAM.
+
+    If left null while ingress is restricted, no uptime check is created at
+    all - there's nothing reachable to monitor without an endpoint.
+  EOT
+
+  validation {
+    condition     = var.private_check_endpoint == null || (var.private_check_endpoint.port > 0 && var.private_check_endpoint.port <= 65535)
+    error_message = "private_check_endpoint.port must be a valid TCP port (1-65535)"
   }
 }

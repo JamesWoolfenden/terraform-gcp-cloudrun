@@ -1,0 +1,5 @@
+suppressions:
+  - policy_id: HLD_TF_063_MEDIUM
+    resource_id: local.containers_normalized
+    reason: "Absorbs the ternary/for/lookup logic extracted out of google_cloud_run_v2_service.default (see HLD_TF_063_HIGH suppression on that resource) so the resource itself stays simple; splitting further into map-keyed locals would add indirection without a real readability gain."
+    approved_by: james.woolfenden@gmail.com

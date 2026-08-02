@@ -1,0 +1,97 @@
+{
+  "findings": [
+    {
+      "confidence": "high",
+      "explanation": "HLD_CI_017 (unpinned reusable-workflow call, HIGH/supply-chain) is correctly detected and then suppressed with '# holden:ignore:HLD_CI_017: its my project' \u2014 a reason that doesn't address the actual risk. This job runs on every push to main with permissions: {contents: write, id-token: write} and calls JamesWoolfenden/.github/.github/workflows/terraform-verify-gcp.yml@main, an unpinned mutable ref. If that ref is ever compromised (repo takeover, force-push, or a GitHub ref-resolution race), the attacker's workflow code executes with a GCP OIDC token for terraform-gcp-cloudrun@pike-477416.iam.gserviceaccount.com and write access to this repo, automatically, with no PR review gate. 'It's my project' doesn't mitigate a supply-chain compromise of a *different* repo (JamesWoolfenden/.github) that this workflow trusts implicitly. pull_request.yml:16-18 has the identical pattern (gated behind a PR at least, so lower blast radius, but same weak justification).",
+      "file": ".github/workflows/verify.yml",
+      "first_seen": "2026-08-02",
+      "fix": "Replace lines 18-20 of .github/workflows/verify.yml:\n  verify:\n    uses: JamesWoolfenden/.github/.github/workflows/terraform-verify-gcp.yml@7e6376f276d0f76e4565243d9c443330804b960e\n    with:\n      service_account: terraform-gcp-cloudrun@pike-477416.iam.gserviceaccount.com\n(dropping the '# holden:ignore:HLD_CI_017' comment on the line above, since it's no longer needed once pinned)",
+      "fixable": true,
+      "id": "HOLDEN_AI_001",
+      "last_seen": "2026-08-02",
+      "line": 18,
+      "principle": "supply-chain",
+      "related_resources": [
+        ".github/workflows/pull_request.yml:16 (gha_job.pr, identical pattern)"
+      ],
+      "remediation": "Pin both reusable-workflow refs to the current commit SHA of JamesWoolfenden/.github's main branch (verified via `gh api repos/JamesWoolfenden/.github/git/refs/heads/main`): 7e6376f276d0f76e4565243d9c443330804b960e. Both target files exist at that SHA (terraform-verify-gcp.yml, terraform-pr-gcp.yml). Drop the now-unneeded ignore comment once pinned, and consider Renovate/Dependabot for periodic SHA bumps so pinning doesn't silently freeze out fixes from the upstream reusable workflow.",
+      "resource": "gha_job.verify",
+      "severity": "HIGH",
+      "status": "open",
+      "suppression_reason": null,
+      "title": "HLD_CI_017 suppressed with a non-substantive reason on a push-to-main workflow with contents:write + id-token:write",
+      "unresolved_since": "2026-08-02"
+    },
+    {
+      "confidence": "high",
+      "explanation": "Same HLD_CI_017 suppression pattern as HOLDEN_AI_001, on the PR-triggered job. Lower blast radius than verify.yml since it's gated behind a pull_request event rather than a direct push to main, but it still mints a GCP OIDC token (id-token: write) against an unpinned @main ref during CI on every PR, including from forks if the workflow trigger ever changes to pull_request_target or a fork-based contributor model is adopted later.",
+      "file": ".github/workflows/pull_request.yml",
+      "first_seen": "2026-08-02",
+      "fix": "Replace lines 16-20 of .github/workflows/pull_request.yml:\n  pr:\n    uses: JamesWoolfenden/.github/.github/workflows/terraform-pr-gcp.yml@7e6376f276d0f76e4565243d9c443330804b960e\n    with:\n      service_account: terraform-gcp-cloudrun@pike-477416.iam.gserviceaccount.com\n(dropping the '# holden:ignore:HLD_CI_017' comment on the line above)",
+      "fixable": true,
+      "id": "HOLDEN_AI_002",
+      "last_seen": "2026-08-02",
+      "line": 16,
+      "principle": "supply-chain",
+      "related_resources": [
+        ".github/workflows/verify.yml:18 (gha_job.verify, primary instance \u2014 see HOLDEN_AI_001)"
+      ],
+      "remediation": "Pin to the same commit SHA as HOLDEN_AI_001: 7e6376f276d0f76e4565243d9c443330804b960e (terraform-pr-gcp.yml confirmed present at that SHA).",
+      "resource": "gha_job.pr",
+      "severity": "HIGH",
+      "status": "open",
+      "suppression_reason": null,
+      "title": "Same unpinned-reusable-workflow pattern as verify.yml, weaker blast radius but same non-substantive suppression",
+      "unresolved_since": "2026-08-02"
+    },
+    {
+      "confidence": "high",
+      "explanation": "This module always creates a google_monitoring_uptime_check_config targeting the service's public .run.app URI via the default global (public) checker locations \u2014 it never sets checker_type/internal_checkers for a VPC-based private check. But var.service.ingress lets callers restrict the service to INGRESS_TRAFFIC_INTERNAL_ONLY or INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER, and Google's public uptime checkers run outside the customer's VPC \u2014 Cloud Run's ingress control blocks them just like any other external caller. All three real instantiations in this repo's own examples use a restricted ingress value, so their uptime checks will permanently fail, not because the service is unhealthy but because the monitoring config itself can never reach it. HLD_GCP_336 only verifies an uptime check exists, so it can't see that the check is structurally unreachable for its own target. Net effect: a false 'service down' signal (or a check silently ignored by whoever's on call once it's learned to always be red), which is worse than no check for a reliability/on-call workflow.",
+      "file": "google_cloud_run_v2_service.tf",
+      "first_seen": "2026-08-02",
+      "fixable": false,
+      "id": "HOLDEN_AI_003",
+      "last_seen": "2026-08-02",
+      "line": 129,
+      "principle": "reliability",
+      "related_resources": [
+        "example/examplemulti/module.multi.tf:112 (module.backend, ingress = INGRESS_TRAFFIC_INTERNAL_ONLY)",
+        "example/examplemulti/module.multi.tf:76 (module.frontend, ingress = INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER)",
+        "example/examplea/module.cloudrun.tf:72 (module.cloudrun, ingress = INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER)"
+      ],
+      "remediation": "Either (a) skip creating the uptime check when var.service.ingress != \"INGRESS_TRAFFIC_ALL\" (count/for_each guard), or (b) switch to a VPC-based private uptime check (checker_type = \"VPC_CHECKERS\" with internal_checkers referencing a checker deployed inside the same VPC as the vpc_connector) when ingress is restricted. Which is correct depends on whether restricted-ingress deployments are expected to have monitoring at all \u2014 that's a product decision for this module's maintainer, not something to guess.",
+      "resource": "google_monitoring_uptime_check_config.cloud_run_service",
+      "severity": "MEDIUM",
+      "status": "fixed",
+      "suppression_reason": null,
+      "title": "Uptime check monitors the public URI even when the service's own ingress setting blocks public traffic",
+      "unresolved_since": null
+    },
+    {
+      "confidence": "high",
+      "explanation": "google_cloud_run_v2_service.tf:151-157 already creates a google_kms_crypto_key_iam_member granting roles/cloudkms.cryptoKeyEncrypterDecrypter to the Cloud Run service agent whenever var.encryption_key != null \u2014 this fires once per module instantiation. Both examples then also declare an identical, hand-written google_kms_crypto_key_iam_member for the exact same role/member/key at the call site. examplea ends up with 2 Terraform resources managing 1 real IAM binding; examplemulti (which calls the module twice, as frontend and backend) ends up with 3. This isn't wrong at the GCP API level (IAM member bindings are idempotent/additive), but it's dead weight that muddies which resource is actually load-bearing, and it sets a confusing precedent for anyone copying these examples as a template \u2014 they'd reasonably assume the caller is responsible for granting KMS access, when the module already does it.",
+      "file": "example/examplea/module.cloudrun.tf",
+      "first_seen": "2026-08-02",
+      "fixable": false,
+      "id": "HOLDEN_AI_004",
+      "last_seen": "2026-08-02",
+      "line": 34,
+      "principle": "maintainability",
+      "related_resources": [
+        "google_cloud_run_v2_service.tf:151 (google_kms_crypto_key_iam_member.cloud_run_service_agent, the module-internal grant this duplicates)",
+        "example/examplemulti/module.multi.tf:37 (google_kms_crypto_key_iam_member.cloudrun_sa, same pattern, duplicated twice more via module.frontend + module.backend)"
+      ],
+      "remediation": "Decide, deliberately, which layer owns this grant: either the module should be the single source of truth (drop the explicit example-level resources), or the module's internal auto-grant should be removed in favor of requiring callers to grant KMS access themselves (a common pattern where the module doesn't reach out and mutate IAM on externally-owned resources like a caller-created KMS key). Leaving both is not itself dangerous, just redundant \u2014 worth a deliberate choice rather than leaving it as accretion.",
+      "resource": "google_kms_crypto_key_iam_member.cloudrun_sa",
+      "severity": "LOW",
+      "status": "fixed",
+      "suppression_reason": null,
+      "title": "Both examples explicitly grant the KMS decrypt IAM binding that the module already grants internally per-instantiation",
+      "unresolved_since": null
+    }
+  ],
+  "scan_date": "2026-08-02T00:00:00Z",
+  "scan_path": ".",
+  "suggested_policies": [],
+  "suggested_suppressions": []
+}

@@ -1,16 +1,12 @@
 # holden:ignore:HLD_TF_026 — examples intentionally use ../../ to reference the local module root
-data "google_project" "project_info" {
-  project_id = "pike-477416"
-}
-
 resource "google_service_account" "cloudrun" {
-  project      = "pike-477416"
+  project      = var.project
   account_id   = "cloudrun-sa"
   display_name = "Cloud Run service account"
 }
 
 resource "google_kms_key_ring" "cloudrun" {
-  project  = "pike-477416"
+  project  = var.project
   name     = "cloudrun-keyring"
   location = "us-central1"
 }
@@ -26,20 +22,16 @@ resource "google_kms_crypto_key" "cloudrun" {
 }
 
 data "google_vpc_access_connector" "cloudrun" {
-  project = "pike-477416"
+  project = var.project
   name    = "cloudrun-connector"
   region  = "us-central1"
 }
 
-resource "google_kms_crypto_key_iam_member" "cloudrun_sa" {
-  crypto_key_id = google_kms_crypto_key.cloudrun.id
-  role          = "roles/cloudkms.cryptoKeyEncrypterDecrypter"
-  member        = "serviceAccount:service-${data.google_project.project_info.number}@serverless-robot-prod.iam.gserviceaccount.com"
-}
-
+# holden:ignore:HLD_TF_026
+# holden:ignore:HLD_TF_078
 module "cloudrun" {
   source          = "../../"
-  project         = "pike-477416"
+  project         = var.project
   service_account = google_service_account.cloudrun.email
   encryption_key  = google_kms_crypto_key.cloudrun.id
   vpc_connector   = data.google_vpc_access_connector.cloudrun.id

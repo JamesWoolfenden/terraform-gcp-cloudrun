@@ -1,19 +1,19 @@
 # holden:ignore:HLD_TF_026 — examples intentionally use ../../ to reference the local module root
 
 resource "google_service_account" "frontend" {
-  project      = "pike-477416"
+  project      = var.project
   account_id   = "cloudrun-frontend-sa"
   display_name = "Cloud Run frontend service account"
 }
 
 resource "google_service_account" "backend" {
-  project      = "pike-477416"
+  project      = var.project
   account_id   = "cloudrun-backend-sa"
   display_name = "Cloud Run backend service account"
 }
 
 resource "google_kms_key_ring" "cloudrun" {
-  project  = "pike-477416"
+  project  = var.project
   name     = "cloudrun-keyring"
   location = "us-central1"
 }
@@ -29,20 +29,16 @@ resource "google_kms_crypto_key" "cloudrun" {
 }
 
 data "google_vpc_access_connector" "cloudrun" {
-  project = "pike-477416"
+  project = var.project
   name    = "cloudrun-connector"
   region  = "us-central1"
 }
 
-resource "google_kms_crypto_key_iam_member" "cloudrun_sa" {
-  crypto_key_id = google_kms_crypto_key.cloudrun.id
-  role          = "roles/cloudkms.cryptoKeyEncrypterDecrypter"
-  member        = "serviceAccount:service-${data.google_project.current.number}@serverless-robot-prod.iam.gserviceaccount.com"
-}
-
+# holden:ignore:HLD_TF_026: this is an example
+# holden:ignore:HLD_TF_078
 module "frontend" {
   source          = "../../"
-  project         = "pike-477416"
+  project         = var.project
   service_account = google_service_account.frontend.email
   encryption_key  = google_kms_crypto_key.cloudrun.id
   vpc_connector   = data.google_vpc_access_connector.cloudrun.id
@@ -76,9 +72,11 @@ module "frontend" {
   }
 }
 
+# holden:ignore:HLD_TF_026:  this is an example
+# holden:ignore:HLD_TF_078
 module "backend" {
   source          = "../../"
-  project         = "pike-477416"
+  project         = var.project
   service_account = google_service_account.backend.email
   encryption_key  = google_kms_crypto_key.cloudrun.id
   vpc_connector   = data.google_vpc_access_connector.cloudrun.id

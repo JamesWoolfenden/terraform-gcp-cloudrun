@@ -1,2 +1,13 @@
 policies:
   - .holden/policies
+
+# Project average complexity per resource must not exceed threshold.
+# This module wraps a single, feature-rich google_cloud_run_v2_service
+# resource with 7 legitimately-optional dynamic blocks (vpc_access, volumes,
+# empty_dir, containers, env, value_source, volume_mounts). All extractable
+# conditional/lookup logic has already been moved into locals; the remaining
+# complexity is structural to the module's public interface and would only
+# shrink further by making currently-optional inputs mandatory, which is a
+# breaking change for existing consumers.
+skip_policies:
+  - HLD_TF_077
