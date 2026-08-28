@@ -115,8 +115,8 @@ variable "encryption_key" {
 
 variable "min_instance_count" {
   type        = number
-  default     = null
-  description = "Minimum number of container instances to keep warm; null allows scale-to-zero (default Cloud Run behavior)"
+  default     = 0
+  description = "Minimum number of container instances to keep warm; 0 allows scale-to-zero (matches Cloud Run's own default). Set to null to omit the setting from the scaling block entirely instead of explicitly requesting 0."
 
   validation {
     condition     = var.min_instance_count == null || var.min_instance_count >= 0
@@ -126,8 +126,8 @@ variable "min_instance_count" {
 
 variable "max_instance_count" {
   type        = number
-  default     = null
-  description = "Maximum number of container instances Cloud Run may scale to; null uses the project default (no per-service ceiling)"
+  default     = 100
+  description = "Maximum number of container instances Cloud Run may scale to; 100 matches Cloud Run's own default per-revision ceiling. Set to null to omit the setting from the scaling block entirely instead of explicitly requesting 100."
 
   validation {
     condition     = var.max_instance_count == null || var.max_instance_count > 0
@@ -241,5 +241,60 @@ variable "private_check_endpoint" {
   validation {
     condition     = var.private_check_endpoint == null || (var.private_check_endpoint.port > 0 && var.private_check_endpoint.port <= 65535)
     error_message = "private_check_endpoint.port must be a valid TCP port (1-65535)"
+  }
+}
+
+variable "invokers" {
+  type        = list(string)
+  description = "Principals granted roles/run.invoker on the service, authoritatively for that role. Empty to create no binding"
+  default     = []
+
+  validation {
+    condition     = !anytrue([for m in var.invokers : contains(["allUsers", "allAuthenticatedUsers"], m)])
+    error_message = "var.invokers must not contain allUsers or allAuthenticatedUsers, an unauthenticated Cloud Run service should say so explicitly"
+  }
+}
+
+variable "worker_pool_image" {
+  type        = string
+  description = "Container image run by a Cloud Run worker pool alongside the service. Empty to create no worker pool"
+  default     = ""
+
+  validation {
+    condition     = var.worker_pool_image == "" || !can(regex(":latest$", var.worker_pool_image))
+    error_message = "var.worker_pool_image must be pinned to a digest or version tag, not :latest"
+  }
+}
+
+variable "worker_pool_service_account" {
+  type        = string
+  description = "Email of the service account the worker pool runs as"
+  default     = ""
+
+  validation {
+    condition     = var.worker_pool_service_account == "" || can(regex("^[^@]+@[^@]+$", var.worker_pool_service_account))
+    error_message = "var.worker_pool_service_account must be a service account email address"
+  }
+}
+
+variable "legacy_service_image" {
+  type        = string
+  description = "Container image for a v1 (google_cloud_run_service) deployment kept alongside the v2 service during migration. Empty to create no v1 service"
+  default     = ""
+
+  validation {
+    condition     = var.legacy_service_image == "" || !can(regex(":latest$", var.legacy_service_image))
+    error_message = "var.legacy_service_image must be pinned to a digest or version tag, not :latest"
+  }
+}
+
+variable "legacy_service_account" {
+  type        = string
+  description = "Email of the service account the v1 service runs as"
+  default     = ""
+
+  validation {
+    condition     = var.legacy_service_account == "" || can(regex("^[^@]+@[^@]+$", var.legacy_service_account))
+    error_message = "var.legacy_service_account must be a service account email address"
   }
 }

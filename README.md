@@ -5,7 +5,6 @@
 [![GitHub tag (latest SemVer)](https://img.shields.io/github/tag/JamesWoolfenden/terraform-gcp-cloudrun.svg?label=latest)](https://github.com/JamesWoolfenden/terraform-gcp-cloudrun/releases/latest)
 ![Terraform Version](https://img.shields.io/badge/tf-%3E%3D0.14.0-blue.svg)
 [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white)](https://github.com/pre-commit/pre-commit)
-[![checkov](https://img.shields.io/badge/checkov-verified-brightgreen)](https://www.checkov.io/)
 
 ## Usage
 
@@ -43,7 +42,11 @@ No modules.
 
 | Name | Type |
 | ---- | ---- |
+| [google_cloud_run_service.legacy](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/cloud_run_service) | resource |
+| [google_cloud_run_service_iam_binding.legacy_invokers](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/cloud_run_service_iam_binding) | resource |
 | [google_cloud_run_v2_service.default](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/cloud_run_v2_service) | resource |
+| [google_cloud_run_v2_service_iam_binding.invokers](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/cloud_run_v2_service_iam_binding) | resource |
+| [google_cloud_run_v2_worker_pool.main](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/cloud_run_v2_worker_pool) | resource |
 | [google_kms_crypto_key_iam_member.cloud_run_service_agent](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/kms_crypto_key_iam_member) | resource |
 | [google_monitoring_uptime_check_config.private](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/monitoring_uptime_check_config) | resource |
 | [google_monitoring_uptime_check_config.public](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/monitoring_uptime_check_config) | resource |
@@ -58,9 +61,12 @@ No modules.
 | ---- | ----------- | ---- | ------- | :------: |
 | <a name="input_containers"></a> [containers](#input\_containers) | Cloud Run containers | <pre>list(object({<br/>    name           = string<br/>    container_port = number<br/>    image          = string<br/>    depends_on     = list(string)<br/>    env            = map(string)<br/>    secret_env = optional(list(object({<br/>      name    = string<br/>      secret  = string<br/>      version = string<br/>    })), [])<br/>    volume_mounts = optional(object({<br/>      name       = string<br/>      mount_path = string<br/>    }))<br/>  }))</pre> | n/a | yes |
 | <a name="input_encryption_key"></a> [encryption\_key](#input\_encryption\_key) | KMS key resource name for CMEK encryption of container instances; if null uses Google-managed key | `string` | n/a | yes |
+| <a name="input_invokers"></a> [invokers](#input\_invokers) | Principals granted roles/run.invoker on the service, authoritatively for that role. Empty to create no binding | `list(string)` | `[]` | no |
+| <a name="input_legacy_service_account"></a> [legacy\_service\_account](#input\_legacy\_service\_account) | Email of the service account the v1 service runs as | `string` | `""` | no |
+| <a name="input_legacy_service_image"></a> [legacy\_service\_image](#input\_legacy\_service\_image) | Container image for a v1 (google\_cloud\_run\_service) deployment kept alongside the v2 service during migration. Empty to create no v1 service | `string` | `""` | no |
 | <a name="input_liveness_probe"></a> [liveness\_probe](#input\_liveness\_probe) | Liveness probe applied to the primary (first) container; null means no liveness probe is configured (Cloud Run relies on the container staying up, with no active restart-on-hang check). | <pre>object({<br/>    initial_delay_seconds = optional(number)<br/>    timeout_seconds       = optional(number)<br/>    period_seconds        = optional(number)<br/>    failure_threshold     = optional(number)<br/>    http_get = optional(object({<br/>      path = optional(string)<br/>      port = optional(number)<br/>      http_headers = optional(list(object({<br/>        name  = string<br/>        value = optional(string)<br/>      })), [])<br/>    }))<br/>    grpc = optional(object({<br/>      port    = optional(number)<br/>      service = optional(string)<br/>    }))<br/>    tcp_socket = optional(object({<br/>      port = optional(number)<br/>    }))<br/>  })</pre> | `null` | no |
-| <a name="input_max_instance_count"></a> [max\_instance\_count](#input\_max\_instance\_count) | Maximum number of container instances Cloud Run may scale to; null uses the project default (no per-service ceiling) | `number` | `null` | no |
-| <a name="input_min_instance_count"></a> [min\_instance\_count](#input\_min\_instance\_count) | Minimum number of container instances to keep warm; null allows scale-to-zero (default Cloud Run behavior) | `number` | `null` | no |
+| <a name="input_max_instance_count"></a> [max\_instance\_count](#input\_max\_instance\_count) | Maximum number of container instances Cloud Run may scale to; 100 matches Cloud Run's own default per-revision ceiling. Set to null to omit the setting from the scaling block entirely instead of explicitly requesting 100. | `number` | `100` | no |
+| <a name="input_min_instance_count"></a> [min\_instance\_count](#input\_min\_instance\_count) | Minimum number of container instances to keep warm; 0 allows scale-to-zero (matches Cloud Run's own default). Set to null to omit the setting from the scaling block entirely instead of explicitly requesting 0. | `number` | `0` | no |
 | <a name="input_private_check_endpoint"></a> [private\_check\_endpoint](#input\_private\_check\_endpoint) | Optional private target for a VPC-based (VPC\_CHECKERS) uptime check,<br/>used only when service.ingress is not INGRESS\_TRAFFIC\_ALL. Point it at<br/>the internal IP:port of whatever fronts this service on the private<br/>network - an internal Application Load Balancer forwarding rule (for<br/>INGRESS\_TRAFFIC\_INTERNAL\_LOAD\_BALANCER) or a Private Service Connect<br/>endpoint (for INGRESS\_TRAFFIC\_INTERNAL\_ONLY). This module registers that<br/>endpoint in Service Directory and points the uptime check at it; it does<br/>not create the load balancer/PSC endpoint itself, since it doesn't own<br/>that network topology.<br/><br/>`network` is the target VPC's self-link in the form<br/>projects/PROJECT\_NUMBER/locations/global/networks/NETWORK\_NAME.<br/>`service_directory_location` is the region for the Service Directory<br/>namespace, e.g. "us-central1" - typically the same region as the service.<br/><br/>The caller must separately allow inbound TCP from 35.199.192.0/19 on<br/>that network, and grant the Cloud Monitoring service agent<br/>roles/servicedirectory.viewer and roles/servicedirectory.pscAuthorizedService<br/>- this module does not manage that network's firewall rules or IAM.<br/><br/>If left null while ingress is restricted, no uptime check is created at<br/>all - there's nothing reachable to monitor without an endpoint. | <pre>object({<br/>    ip                         = string<br/>    port                       = number<br/>    network                    = string<br/>    service_directory_location = string<br/>  })</pre> | `null` | no |
 | <a name="input_project"></a> [project](#input\_project) | GCP project ID | `string` | n/a | yes |
 | <a name="input_service"></a> [service](#input\_service) | Cloud Run service configuration | <pre>object({<br/>    name         = string<br/>    location     = string<br/>    launch_stage = string<br/>    ingress      = string<br/>  })</pre> | n/a | yes |
@@ -69,6 +75,8 @@ No modules.
 | <a name="input_volumes"></a> [volumes](#input\_volumes) | Template-level volumes; each name must be referenced by a container volume\_mounts entry | <pre>list(object({<br/>    name = string<br/>    empty_dir = optional(object({<br/>      medium     = optional(string, "MEMORY")<br/>      size_limit = optional(string)<br/>    }))<br/>  }))</pre> | `[]` | no |
 | <a name="input_vpc_connector"></a> [vpc\_connector](#input\_vpc\_connector) | VPC connector ID for Cloud Run VPC egress; if null the vpc\_access block is omitted | `string` | n/a | yes |
 | <a name="input_vpc_egress"></a> [vpc\_egress](#input\_vpc\_egress) | VPC Access Connector egress setting; PRIVATE\_RANGES\_ONLY routes only RFC-1918 traffic through the connector, ALL\_TRAFFIC forces all egress through VPC (requires Cloud NAT for internet access) | `string` | `"PRIVATE_RANGES_ONLY"` | no |
+| <a name="input_worker_pool_image"></a> [worker\_pool\_image](#input\_worker\_pool\_image) | Container image run by a Cloud Run worker pool alongside the service. Empty to create no worker pool | `string` | `""` | no |
+| <a name="input_worker_pool_service_account"></a> [worker\_pool\_service\_account](#input\_worker\_pool\_service\_account) | Email of the service account the worker pool runs as | `string` | `""` | no |
 
 ## Outputs
 
@@ -101,7 +109,10 @@ resource "google_project_iam_custom_role" "terraform_pike" {
     "run.services.create",
     "run.services.delete",
     "run.services.get",
+    "run.services.getIamPolicy",
+    "run.services.setIamPolicy",
     "run.services.update",
+    "run.workerpools.get",
     "servicedirectory.endpoints.create",
     "servicedirectory.endpoints.delete",
     "servicedirectory.endpoints.get",
@@ -122,10 +133,11 @@ resource "google_project_iam_custom_role" "terraform_pike_plan" {
   permissions = [
     "cloudkms.cryptoKeys.getIamPolicy",
     "monitoring.uptimeCheckConfigs.get",
-    "resourcemanager.organizations.get",
     "resourcemanager.projects.get",
     "run.operations.get",
     "run.services.get",
+    "run.services.getIamPolicy",
+    "run.workerpools.get",
     "servicedirectory.endpoints.get",
     "servicedirectory.services.get"
   ]

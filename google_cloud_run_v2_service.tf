@@ -1,48 +1,3 @@
-locals {
-  default_resource_limits = {
-    cpu    = "1"
-    memory = "512Mi"
-  }
-
-  # Pre-derive the per-container shape (resource limits, env entries, volume
-  # mounts) once here instead of re-deriving it inline on every dynamic
-  # "containers" iteration - keeps the resource block itself to plain
-  # attribute references.
-  containers_normalized = [
-    for c in var.containers : {
-      name           = c["name"]
-      container_port = c["container_port"]
-      image          = c["image"]
-      depends_on     = c["depends_on"]
-      volume_mounts  = try(c["volume_mounts"], [])
-      resource_limits = coalesce(
-        lookup(try(c["resources"], {}), "limits", null),
-        local.default_resource_limits
-      )
-      env_entries = concat(
-        [for k, v in try(c["env"], {}) : { name = k, value = v, secret = null, version = null, value_source_items = [] }],
-        [for secret in try(c["secret_env"], []) : { name = secret.name, value = null, secret = secret.secret, version = secret.version, value_source_items = [1] }]
-      )
-    }
-  ]
-
-  vpc_access_items = var.vpc_connector != null ? [1] : []
-
-  volumes_normalized = [
-    for v in var.volumes : {
-      name            = v["name"]
-      empty_dir_items = v["empty_dir"] != null ? [v["empty_dir"]] : []
-    }
-  ]
-
-  # Google's public uptime checkers can only ever reach a fully public
-  # service; a restricted ingress needs a private (VPC_CHECKERS) check
-  # instead, and only when the caller has given us something reachable to
-  # point it at.
-  uptime_check_public  = var.service.ingress == "INGRESS_TRAFFIC_ALL"
-  uptime_check_private = !local.uptime_check_public && var.private_check_endpoint != null
-}
-
 # holden:ignore:HLD_TF_063_HIGH  # 7 dynamic blocks (vpc_access/volumes/empty_dir/containers/env/value_source/volume_mounts) are each individually optional per the module's public interface; all extractable ternary/for/lookup logic already lives in locals above.
 resource "google_cloud_run_v2_service" "default" {
   name         = var.service.name
@@ -70,7 +25,7 @@ resource "google_cloud_run_v2_service" "default" {
     }
 
     dynamic "vpc_access" {
-      for_each = local.vpc_access_items
+      for_each = var.vpc_connector != null ? [1] : []
       content {
         connector = var.vpc_connector
         egress    = var.vpc_egress
@@ -78,7 +33,7 @@ resource "google_cloud_run_v2_service" "default" {
     }
 
     dynamic "volumes" {
-      for_each = local.volumes_normalized
+      for_each = [for v in var.volumes : { name = v["name"], empty_dir_items = v["empty_dir"] != null ? [v["empty_dir"]] : [] }]
       content {
         name = volumes.value.name
         dynamic "empty_dir" {
@@ -92,7 +47,18 @@ resource "google_cloud_run_v2_service" "default" {
     }
 
     dynamic "containers" {
-      for_each = local.containers_normalized
+      for_each = [for c in var.containers : {
+        name            = c["name"]
+        container_port  = c["container_port"]
+        image           = c["image"]
+        depends_on      = c["depends_on"]
+        volume_mounts   = try(c["volume_mounts"], [])
+        resource_limits = coalesce(lookup(try(c["resources"], {}), "limits", null), { cpu = "1", memory = "512Mi" })
+        env_entries = concat(
+          [for k, v in try(c["env"], {}) : { name = k, value = v, secret = null, version = null, value_source_items = [] }],
+          [for secret in try(c["secret_env"], []) : { name = secret.name, value = null, secret = secret.secret, version = secret.version, value_source_items = [1] }]
+        )
+      }]
       content {
         name = containers.value.name
         ports {
@@ -220,6 +186,12 @@ resource "google_cloud_run_v2_service" "default" {
     }
   }
 
+  # Terraform can't infer this ordering on its own - the IAM grant produces no
+  # attribute this resource reads, so without an explicit depends_on the two
+  # can apply in either order, and a revision created before the Cloud Run
+  # service agent has decrypt permission on the CMEK key fails to start.
+  depends_on = [google_kms_crypto_key_iam_member.cloud_run_service_agent]
+
   lifecycle {
     ignore_changes = [
       launch_stage,
@@ -241,7 +213,7 @@ moved {
 }
 
 resource "google_monitoring_uptime_check_config" "public" {
-  count = local.uptime_check_public ? 1 : 0
+  count = var.service.ingress == "INGRESS_TRAFFIC_ALL" ? 1 : 0
 
   project      = var.project
   display_name = "${google_cloud_run_v2_service.default.name}-uptime-check"
@@ -263,7 +235,7 @@ resource "google_monitoring_uptime_check_config" "public" {
 }
 
 resource "google_service_directory_namespace" "uptime" {
-  count = local.uptime_check_private ? 1 : 0
+  count = var.service.ingress != "INGRESS_TRAFFIC_ALL" && var.private_check_endpoint != null ? 1 : 0
 
   project      = var.project
   namespace_id = "${var.service.name}-uptime"
@@ -271,14 +243,14 @@ resource "google_service_directory_namespace" "uptime" {
 }
 
 resource "google_service_directory_service" "uptime" {
-  count = local.uptime_check_private ? 1 : 0
+  count = var.service.ingress != "INGRESS_TRAFFIC_ALL" && var.private_check_endpoint != null ? 1 : 0
 
   service_id = var.service.name
   namespace  = google_service_directory_namespace.uptime[0].id
 }
 
 resource "google_service_directory_endpoint" "uptime" {
-  count = local.uptime_check_private ? 1 : 0
+  count = var.service.ingress != "INGRESS_TRAFFIC_ALL" && var.private_check_endpoint != null ? 1 : 0
 
   endpoint_id = var.service.name
   service     = google_service_directory_service.uptime[0].id
@@ -293,7 +265,7 @@ resource "google_service_directory_endpoint" "uptime" {
 # roles/servicedirectory.pscAuthorizedService - this module doesn't own that
 # network's firewall rules or IAM, so it doesn't create them.
 resource "google_monitoring_uptime_check_config" "private" {
-  count = local.uptime_check_private ? 1 : 0
+  count = var.service.ingress != "INGRESS_TRAFFIC_ALL" && var.private_check_endpoint != null ? 1 : 0
 
   project      = var.project
   display_name = "${google_cloud_run_v2_service.default.name}-uptime-check"

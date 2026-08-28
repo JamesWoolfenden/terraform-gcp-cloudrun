@@ -1,5 +1,5 @@
 suppressions:
-  - policy_id: HLD_TF_063_MEDIUM
-    resource_id: local.containers_normalized
-    reason: "Absorbs the ternary/for/lookup logic extracted out of google_cloud_run_v2_service.default (see HLD_TF_063_HIGH suppression on that resource) so the resource itself stays simple; splitting further into map-keyed locals would add indirection without a real readability gain."
+  - policy_id: HLD_TF_027
+    resource_id: tf_file.variables.tf
+    reason: "This module wraps a single feature-rich google_cloud_run_v2_service resource; the 18 variables reflect that resource's real optional surface (scaling, probes, CMEK, VPC access, private uptime checks) rather than the module doing multiple unrelated jobs. Same root cause as the HLD_TF_077/HLD_TF_078 suppressions already in place for google_cloud_run_v2_service.default."
     approved_by: james.woolfenden@gmail.com

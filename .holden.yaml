@@ -11,3 +11,9 @@ policies:
 # breaking change for existing consumers.
 skip_policies:
   - HLD_TF_077
+
+scan_roots:
+  - path: .
+    targets: [gha]
+  - path: example/examplea
+    targets: [terraform]

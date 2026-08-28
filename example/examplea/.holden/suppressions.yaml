@@ -1,5 +1,0 @@
-suppressions:
-  - module: module.cloudrun
-    policy_id: HLD_TF_063_MEDIUM
-    reason: "local.containers_normalized absorbs logic extracted out of google_cloud_run_v2_service.default to keep that resource under the complexity threshold; see the suppression and .holden.yaml skip_policies entry in the module root (../../.holden/suppressions.yaml, ../../.holden.yaml)."
-    approved_by: james.woolfenden@gmail.com
