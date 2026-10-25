@@ -117,6 +117,10 @@ resource "google_project_iam_custom_role" "terraform_pike" {
     "servicedirectory.endpoints.delete",
     "servicedirectory.endpoints.get",
     "servicedirectory.endpoints.update",
+    "servicedirectory.namespaces.create",
+    "servicedirectory.namespaces.delete",
+    "servicedirectory.namespaces.get",
+    "servicedirectory.namespaces.update",
     "servicedirectory.services.create",
     "servicedirectory.services.delete",
     "servicedirectory.services.get",
@@ -139,6 +143,7 @@ resource "google_project_iam_custom_role" "terraform_pike_plan" {
     "run.services.getIamPolicy",
     "run.workerpools.get",
     "servicedirectory.endpoints.get",
+    "servicedirectory.namespaces.get",
     "servicedirectory.services.get"
   ]
 }

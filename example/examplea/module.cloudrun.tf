@@ -11,15 +11,6 @@ resource "google_kms_key_ring" "cloudrun" {
   location = "us-central1"
 }
 
-resource "google_kms_crypto_key" "cloudrun" {
-  name            = "cloudrun-key"
-  key_ring        = google_kms_key_ring.cloudrun.id
-  rotation_period = "7776000s"
-
-  lifecycle {
-    prevent_destroy = true
-  }
-}
 
 data "google_vpc_access_connector" "cloudrun" {
   project = var.project
