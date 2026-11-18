@@ -57,7 +57,7 @@ repos:
         # Requires `pre-commit install --hook-type pre-push` once per clone.
         stages: [pre-push]
 -   repo: https://github.com/jameswoolfenden/pike
-    rev: fc5d8825c64a6c87c33d9175d4739df304f3eed5 # v1.0.13
+    rev: 716798c1e676a533c66d080573957b0d63610ca6 # v1.0.15
     hooks:
     -   id: pike-docs-go
         args: ["readme","-d", ".", "-i"]
@@ -66,7 +66,7 @@ repos:
     hooks:
       - id: actionlint
 -   repo: https://github.com/jameswoolfenden/ghat
-    rev: 18bffde9fbbd242d04da9a640dcc510bfdfff41f # v0.1.51
+    rev: 995b7f2c3aef001969b7d8d84ebc82df8f9f5a87 # v0.1.53
     hooks:
     -   id: ghat-go
     -   id: ghat-go-sift
