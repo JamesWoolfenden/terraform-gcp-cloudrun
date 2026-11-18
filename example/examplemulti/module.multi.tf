@@ -28,10 +28,29 @@ resource "google_kms_crypto_key" "cloudrun" {
   }
 }
 
-data "google_vpc_access_connector" "cloudrun" {
-  project = var.project
-  name    = "cloudrun-connector"
-  region  = "us-central1"
+# holden:ignore:HLD_GCP_093: just enough network to drive the module
+# holden:ignore:HLD_GCP_094: just enough network to drive the module
+# holden:ignore:HLD_GCP_303: just enough network to drive the module
+resource "google_compute_network" "cloudrun" {
+  project                 = var.project
+  name                    = "cloudrun-multi-net"
+  auto_create_subnetworks = false
+}
+
+resource "google_vpc_access_connector" "cloudrun" {
+  project       = var.project
+  name          = "cloudrun-multi-conn"
+  region        = "us-central1"
+  network       = google_compute_network.cloudrun.name
+  ip_cidr_range = "10.8.1.0/28"
+  min_instances = 2
+  max_instances = 3
+}
+
+locals {
+  # Built from known names, not google_kms_crypto_key.cloudrun.id, so the
+  # module's count on encryption_key is decidable at plan time.
+  cloudrun_key_id = "projects/${var.project}/locations/us-central1/keyRings/cloudrun-keyring/cryptoKeys/cloudrun-key"
 }
 
 # holden:ignore:HLD_TF_026: this is an example
@@ -40,8 +59,8 @@ module "frontend" {
   source          = "../../"
   project         = var.project
   service_account = google_service_account.frontend.email
-  encryption_key  = google_kms_crypto_key.cloudrun.id
-  vpc_connector   = data.google_vpc_access_connector.cloudrun.id
+  encryption_key  = local.cloudrun_key_id
+  vpc_connector   = google_vpc_access_connector.cloudrun.id
   containers = [
     {
       name           = "frontend"
@@ -70,6 +89,8 @@ module "frontend" {
     launch_stage = "BETA"
     ingress      = "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"
   }
+
+  depends_on = [google_kms_crypto_key.cloudrun]
 }
 
 # holden:ignore:HLD_TF_026:  this is an example
@@ -78,8 +99,8 @@ module "backend" {
   source          = "../../"
   project         = var.project
   service_account = google_service_account.backend.email
-  encryption_key  = google_kms_crypto_key.cloudrun.id
-  vpc_connector   = data.google_vpc_access_connector.cloudrun.id
+  encryption_key  = local.cloudrun_key_id
+  vpc_connector   = google_vpc_access_connector.cloudrun.id
   containers = [
     {
       name           = "backend"
@@ -107,4 +128,6 @@ module "backend" {
     launch_stage = "BETA"
     ingress      = "INGRESS_TRAFFIC_INTERNAL_ONLY"
   }
+
+  depends_on = [google_kms_crypto_key.cloudrun]
 }
