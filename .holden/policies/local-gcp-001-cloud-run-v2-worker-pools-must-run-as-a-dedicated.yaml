@@ -1,0 +1,18 @@
+id: LOCAL_GCP_001
+name: Cloud Run v2 worker pools must run as a dedicated service account
+principle: identity-and-access
+severity: HIGH
+rationale: |
+  A worker pool without template.service_account runs as the Compute Engine
+  default service account, which usually holds project Editor.
+message: |
+  google_cloud_run_v2_worker_pool has no dedicated template.service_account.
+remediation: |
+  Set template.service_account to a least-privilege service account email.
+resources:
+  google_cloud_run_v2_worker_pool:
+    all:
+      - path: template.service_account
+        not_empty: true
+      - path: template.service_account
+        not_matches: '-compute@developer\.gserviceaccount\.com$'

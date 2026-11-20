@@ -1,0 +1,15 @@
+id: LOCAL_GCP_002
+name: Cloud Run v2 worker pools must enforce Binary Authorization
+principle: supply-chain
+severity: MEDIUM
+rationale: |
+  Without a binary_authorization block, images deployed to the worker pool are
+  not checked against the Binary Authorization policy.
+message: |
+  google_cloud_run_v2_worker_pool has no binary_authorization block.
+remediation: |
+  Add binary_authorization { use_default = true }.
+resources:
+  google_cloud_run_v2_worker_pool:
+    path: binary_authorization
+    not_null: true

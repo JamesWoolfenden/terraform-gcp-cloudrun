@@ -1,14 +1,15 @@
 {
+  "category": "all",
   "findings": [
     {
       "confidence": "high",
-      "explanation": "HLD_CI_017 (unpinned reusable-workflow call, HIGH/supply-chain) is correctly detected and then suppressed with '# holden:ignore:HLD_CI_017: its my project' \u2014 a reason that doesn't address the actual risk. This job runs on every push to main with permissions: {contents: write, id-token: write} and calls JamesWoolfenden/.github/.github/workflows/terraform-verify-gcp.yml@main, an unpinned mutable ref. If that ref is ever compromised (repo takeover, force-push, or a GitHub ref-resolution race), the attacker's workflow code executes with a GCP OIDC token for terraform-gcp-cloudrun@pike-477416.iam.gserviceaccount.com and write access to this repo, automatically, with no PR review gate. 'It's my project' doesn't mitigate a supply-chain compromise of a *different* repo (JamesWoolfenden/.github) that this workflow trusts implicitly. pull_request.yml:16-18 has the identical pattern (gated behind a PR at least, so lower blast radius, but same weak justification).",
+      "explanation": "HLD_CI_017 (unpinned reusable-workflow call, HIGH/supply-chain) is correctly detected and then suppressed with '# holden:ignore:HLD_CI_017: its by design' \u2014 a reason that doesn't address the actual risk. This job runs on every push to main with permissions: {contents: write, id-token: write} and calls JamesWoolfenden/.github/.github/workflows/terraform-verify-gcp.yml@main, an unpinned mutable ref. If that ref is ever compromised (repo takeover, force-push, or a GitHub ref-resolution race), the attacker's workflow code executes with a GCP OIDC token for terraform-gcp-cloudrun@pike-477416.iam.gserviceaccount.com and write access to this repo, automatically, with no PR review gate. 'It's my project' doesn't mitigate a supply-chain compromise of a *different* repo (JamesWoolfenden/.github) that this workflow trusts implicitly. pull_request.yml:16-18 has the identical pattern (gated behind a PR at least, so lower blast radius, but same weak justification). Re-checked 2026-11-20: the reusable workflow is still referenced at @main; the suppression reason now reads 'its by design', which still doesn't address the risk.",
       "file": ".github/workflows/verify.yml",
       "first_seen": "2026-08-02",
       "fix": "Replace lines 18-20 of .github/workflows/verify.yml:\n  verify:\n    uses: JamesWoolfenden/.github/.github/workflows/terraform-verify-gcp.yml@7e6376f276d0f76e4565243d9c443330804b960e\n    with:\n      service_account: terraform-gcp-cloudrun@pike-477416.iam.gserviceaccount.com\n(dropping the '# holden:ignore:HLD_CI_017' comment on the line above, since it's no longer needed once pinned)",
       "fixable": true,
       "id": "HOLDEN_AI_001",
-      "last_seen": "2026-08-02",
+      "last_seen": "2026-11-20",
       "line": 18,
       "principle": "supply-chain",
       "related_resources": [
@@ -24,13 +25,13 @@
     },
     {
       "confidence": "high",
-      "explanation": "Same HLD_CI_017 suppression pattern as HOLDEN_AI_001, on the PR-triggered job. Lower blast radius than verify.yml since it's gated behind a pull_request event rather than a direct push to main, but it still mints a GCP OIDC token (id-token: write) against an unpinned @main ref during CI on every PR, including from forks if the workflow trigger ever changes to pull_request_target or a fork-based contributor model is adopted later.",
+      "explanation": "Same HLD_CI_017 suppression pattern as HOLDEN_AI_001, on the PR-triggered job. Lower blast radius than verify.yml since it's gated behind a pull_request event rather than a direct push to main, but it still mints a GCP OIDC token (id-token: write) against an unpinned @main ref during CI on every PR, including from forks if the workflow trigger ever changes to pull_request_target or a fork-based contributor model is adopted later. Re-checked 2026-11-20: the reusable workflow is still referenced at @main; the suppression reason now reads 'its by design', which still doesn't address the risk.",
       "file": ".github/workflows/pull_request.yml",
       "first_seen": "2026-08-02",
       "fix": "Replace lines 16-20 of .github/workflows/pull_request.yml:\n  pr:\n    uses: JamesWoolfenden/.github/.github/workflows/terraform-pr-gcp.yml@7e6376f276d0f76e4565243d9c443330804b960e\n    with:\n      service_account: terraform-gcp-cloudrun@pike-477416.iam.gserviceaccount.com\n(dropping the '# holden:ignore:HLD_CI_017' comment on the line above)",
       "fixable": true,
       "id": "HOLDEN_AI_002",
-      "last_seen": "2026-08-02",
+      "last_seen": "2026-11-20",
       "line": 16,
       "principle": "supply-chain",
       "related_resources": [
@@ -88,10 +89,201 @@
       "suppression_reason": null,
       "title": "Both examples explicitly grant the KMS decrypt IAM binding that the module already grants internally per-instantiation",
       "unresolved_since": null
+    },
+    {
+      "confidence": "high",
+      "explanation": "var.worker_pool_service_account and var.legacy_service_account default to \"\" and their validations accept \"\", so setting only worker_pool_image or legacy_service_image deploys a workload with no service account, which Cloud Run resolves to PROJECT_NUMBER-compute@developer.gserviceaccount.com (usually project Editor). The main service requires var.service_account, so this is the outlier. HLD_GCP_084 can't see it: the resources are count = 0 in every example, and an empty string passes its not_null check on the v1 resource at evaluation time anyway.",
+      "file": "google_cloud_run_v2_worker_pool.main.tf",
+      "first_seen": "2026-11-20",
+      "fixable": false,
+      "id": "HOLDEN_AI_005",
+      "last_seen": "2026-11-20",
+      "line": 1,
+      "principle": "identity-and-access",
+      "related_resources": [
+        "google_cloud_run_service.legacy",
+        "variable.worker_pool_service_account",
+        "variable.legacy_service_account"
+      ],
+      "remediation": "Reject an empty service account whenever the matching image is set (cross-variable validation), and reject the compute default SA email.",
+      "resource": "google_cloud_run_v2_worker_pool.main",
+      "severity": "HIGH",
+      "status": "open",
+      "suppression_reason": null,
+      "title": "Worker pool and legacy v1 service run as the Compute Engine default service account unless the caller remembers to set one",
+      "unresolved_since": "2026-11-20"
+    },
+    {
+      "confidence": "high",
+      "explanation": "google_cloud_run_v2_service.default always sets binary_authorization { use_default = true } and passes var.encryption_key, but the worker pool and the v1 service the same module creates set neither. A caller who enabled CMEK and relies on Binary Authorization gets two workloads that bypass both. HLD_GCP_361 (worker pool CMEK) never evaluates because the pool is count = 0 in the examples, and nothing covers worker pool Binary Authorization.",
+      "file": "google_cloud_run_v2_worker_pool.main.tf",
+      "first_seen": "2026-11-20",
+      "fixable": false,
+      "id": "HOLDEN_AI_006",
+      "last_seen": "2026-11-20",
+      "line": 1,
+      "principle": "supply-chain",
+      "related_resources": [
+        "google_cloud_run_service.legacy",
+        "google_cloud_run_v2_service.default"
+      ],
+      "remediation": "Add binary_authorization { use_default = true } and encryption_key = var.encryption_key to the worker pool; add the run.googleapis.com/binary-authorization and run.googleapis.com/encryption-key annotations to the v1 template.",
+      "resource": "google_cloud_run_v2_worker_pool.main",
+      "severity": "MEDIUM",
+      "status": "open",
+      "suppression_reason": null,
+      "title": "Worker pool and legacy v1 service skip the Binary Authorization and CMEK controls the module enforces on the main service",
+      "unresolved_since": "2026-11-20"
+    },
+    {
+      "confidence": "high",
+      "explanation": "The v1 resource sets no run.googleapis.com/ingress annotation, so it takes Cloud Run's default of \"all\". A caller who set service.ingress to INGRESS_TRAFFIC_INTERNAL_ONLY and enables legacy_service_image during a migration gets a second, public endpoint for the same workload. IAM still applies (allUsers is rejected), so this is exposure rather than unauthenticated access.",
+      "file": "google_cloud_run_service.legacy.tf",
+      "first_seen": "2026-11-20",
+      "fixable": false,
+      "id": "HOLDEN_AI_007",
+      "last_seen": "2026-11-20",
+      "line": 3,
+      "principle": "network-security",
+      "related_resources": [
+        "google_cloud_run_v2_service.default"
+      ],
+      "remediation": "Map var.service.ingress onto the v1 ingress annotation (all / internal / internal-and-cloud-load-balancing).",
+      "resource": "google_cloud_run_service.legacy",
+      "severity": "MEDIUM",
+      "status": "open",
+      "suppression_reason": null,
+      "title": "Legacy v1 service ignores var.service.ingress and is internet-reachable even when the v2 service is internal-only",
+      "unresolved_since": "2026-11-20"
+    },
+    {
+      "confidence": "high",
+      "explanation": "data.google_project.current has no project_id, so it resolves the provider default project. When var.project differs, the KMS grant goes to another project's serverless-robot-prod agent (giving an unrelated principal encrypt/decrypt on the key) while the agent that actually runs the service has no access, so revisions fail to start. The worker pool and v1 service also omit project and deploy into the provider project, not the main service's.",
+      "file": "google_cloud_run_v2_service.tf",
+      "first_seen": "2026-11-20",
+      "fixable": false,
+      "id": "HOLDEN_AI_008",
+      "last_seen": "2026-11-20",
+      "line": 294,
+      "principle": "identity-and-access",
+      "related_resources": [
+        "google_kms_crypto_key_iam_member.cloud_run_service_agent",
+        "google_cloud_run_v2_worker_pool.main",
+        "google_cloud_run_service.legacy"
+      ],
+      "remediation": "Set project_id = var.project on the data source and project = var.project on the worker pool and v1 service.",
+      "resource": "data.google_project.current",
+      "severity": "MEDIUM",
+      "status": "open",
+      "suppression_reason": null,
+      "title": "CMEK service-agent grant and the optional workloads use the provider's default project, not var.project",
+      "unresolved_since": "2026-11-20"
+    },
+    {
+      "confidence": "high",
+      "explanation": "worker_pool_image and legacy_service_image reject :latest, but the images for the main service, the one that always deploys, are not checked. HLD_GCP_200 lands on Unknown because the image comes from the variable; the examples pin nginx:1.27.4, so nothing fails today, but a consumer can pass a mutable tag unchecked.",
+      "file": "variables.tf",
+      "first_seen": "2026-11-20",
+      "fixable": false,
+      "id": "HOLDEN_AI_009",
+      "last_seen": "2026-11-20",
+      "line": 1,
+      "principle": "supply-chain",
+      "related_resources": [
+        "variable.worker_pool_image",
+        "variable.legacy_service_image"
+      ],
+      "remediation": "Add a validation that every containers[].image has a tag other than latest, or a digest.",
+      "resource": "variable.containers",
+      "severity": "LOW",
+      "status": "open",
+      "supersedes": "HLD_GCP_200",
+      "suppression_reason": null,
+      "title": "containers[].image has no :latest/untagged validation, unlike the worker pool and legacy images",
+      "unresolved_since": "2026-11-20"
+    },
+    {
+      "confidence": "medium",
+      "explanation": "var.invokers rejects allUsers, so every service this module creates requires an authenticated caller, yet the public uptime check sends a plain GET to / with no credentials. Cloud Run answers 403 and the check never passes. That means a permanently red alert source rather than monitoring. The principle is a best fit: the issue is broken monitoring, not missing logging.",
+      "file": "google_cloud_run_v2_service.tf",
+      "first_seen": "2026-11-20",
+      "fix": "http_check {\n  path    = \"/\"\n  port    = 443\n  use_ssl = true\n  service_agent_authentication {\n    type = \"OIDC_TOKEN\"\n  }\n}",
+      "fixable": true,
+      "id": "HOLDEN_AI_010",
+      "last_seen": "2026-11-20",
+      "line": 216,
+      "principle": "reliability",
+      "related_resources": [
+        "variable.invokers",
+        "google_cloud_run_v2_service_iam_binding.invokers"
+      ],
+      "remediation": "Add service_agent_authentication { type = \"OIDC_TOKEN\" } to the public http_check and have the caller grant roles/run.invoker to the Cloud Monitoring service agent.",
+      "resource": "google_monitoring_uptime_check_config.public",
+      "severity": "MEDIUM",
+      "status": "open",
+      "suppression_reason": null,
+      "title": "Public uptime check is unauthenticated against a service the module forces to require IAM, so it can only fail",
+      "unresolved_since": "2026-11-20"
+    },
+    {
+      "confidence": "high",
+      "explanation": "The resource reads try(var.service.timeout, \"300s\") and try(c[\"resources\"], {}), but neither the service nor the containers object type declares timeout or resources. Terraform drops undeclared attributes, so every service runs with a 300s timeout and 1 CPU / 512Mi whatever the caller passes. Workloads that need more memory get OOM-killed with no way to tune it.",
+      "file": "google_cloud_run_v2_service.tf",
+      "first_seen": "2026-11-20",
+      "fixable": false,
+      "id": "HOLDEN_AI_011",
+      "last_seen": "2026-11-20",
+      "line": 15,
+      "principle": "reliability",
+      "related_resources": [
+        "variable.service",
+        "variable.containers"
+      ],
+      "remediation": "Add timeout = optional(string, \"300s\") to var.service and resources = optional(object({ limits = optional(map(string)) })) to var.containers.",
+      "resource": "google_cloud_run_v2_service.default",
+      "severity": "LOW",
+      "status": "open",
+      "suppression_reason": null,
+      "title": "Request timeout and container resource limits are hard-coded because the variable types drop those attributes",
+      "unresolved_since": "2026-11-20"
+    },
+    {
+      "confidence": "high",
+      "explanation": "Marking the key name sensitive hides CMEK key changes as (sensitive value) in plans, so a reviewer can't see which key a service is switching to. The value is a resource path, not key material.",
+      "file": "variables.tf",
+      "first_seen": "2026-11-20",
+      "fix": "Remove the line `sensitive   = true` from variable \"encryption_key\".",
+      "fixable": true,
+      "id": "HOLDEN_AI_012",
+      "last_seen": "2026-11-20",
+      "line": 105,
+      "principle": "maintainability",
+      "remediation": "Remove sensitive = true from variable.encryption_key.",
+      "resource": "variable.encryption_key",
+      "severity": "INFO",
+      "status": "open",
+      "suppression_reason": null,
+      "title": "encryption_key is marked sensitive although a KMS key resource name is not secret",
+      "unresolved_since": "2026-11-20"
     }
   ],
-  "scan_date": "2026-08-02T00:00:00Z",
+  "scan_date": "2026-11-20T00:00:00Z",
   "scan_path": ".",
-  "suggested_policies": [],
+  "suggested_policies": [
+    {
+      "first_seen": "2026-11-20",
+      "last_seen": "2026-11-20",
+      "rationale": "A Cloud Run v2 worker pool with no (or empty) template.service_account runs as the Compute Engine default SA. HLD_GCP_084 covers services but not worker pools; only HLD_GCP_361 (CMEK) covers this type.",
+      "status": "installed",
+      "yaml": "id: LOCAL_GCP_001\nname: Cloud Run v2 worker pools must run as a dedicated service account\nprinciple: identity-and-access\nseverity: HIGH\nrationale: |\n  A worker pool without template.service_account runs as the Compute Engine\n  default service account, which usually holds project Editor.\nmessage: |\n  google_cloud_run_v2_worker_pool has no dedicated template.service_account.\nremediation: |\n  Set template.service_account to a least-privilege service account email.\nresources:\n  google_cloud_run_v2_worker_pool:\n    all:\n      - path: template.service_account\n        not_empty: true\n      - path: template.service_account\n        not_matches: '-compute@developer\\.gserviceaccount\\.com$'\n"
+    },
+    {
+      "first_seen": "2026-11-20",
+      "last_seen": "2026-11-20",
+      "rationale": "HLD_GCP_167 requires binary_authorization on Cloud Run v2 services; worker pools accept the same block but nothing checks it, so a pool can deploy unverified images.",
+      "status": "installed",
+      "yaml": "id: LOCAL_GCP_002\nname: Cloud Run v2 worker pools must enforce Binary Authorization\nprinciple: supply-chain\nseverity: MEDIUM\nrationale: |\n  Without a binary_authorization block, images deployed to the worker pool are\n  not checked against the Binary Authorization policy.\nmessage: |\n  google_cloud_run_v2_worker_pool has no binary_authorization block.\nremediation: |\n  Add binary_authorization { use_default = true }.\nresources:\n  google_cloud_run_v2_worker_pool:\n    path: binary_authorization\n    not_null: true\n"
+    }
+  ],
   "suggested_suppressions": []
 }
