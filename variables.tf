@@ -14,12 +14,23 @@ variable "containers" {
       name       = string
       mount_path = string
     }))
+    resources = optional(object({
+      limits = optional(map(string), { cpu = "1", memory = "512Mi" })
+    }), {})
   }))
-  description = "Cloud Run containers"
+  description = "Cloud Run containers; resources.limits defaults to 1 CPU / 512Mi"
 
   validation {
     condition     = length(var.containers) > 0
     error_message = "containers must contain at least one container definition"
+  }
+
+  validation {
+    condition = alltrue([
+      for c in var.containers :
+      can(regex("(@sha256:[a-f0-9]{64}|:[^/:@]+)$", c.image)) && !endswith(c.image, ":latest")
+    ])
+    error_message = "Each containers[].image must be pinned to a version tag or sha256 digest, not :latest or untagged"
   }
 }
 
@@ -52,12 +63,23 @@ variable "service" {
     location     = string
     launch_stage = string
     ingress      = string
+    timeout      = optional(string, "300s")
   })
-  description = "Cloud Run service configuration"
+  description = "Cloud Run service configuration; timeout is the request timeout (default 300s)"
 
   validation {
     condition     = length(trimspace(var.service.name)) > 0
     error_message = "service.name must be a non-empty string"
+  }
+
+  validation {
+    condition     = contains(["INGRESS_TRAFFIC_ALL", "INGRESS_TRAFFIC_INTERNAL_ONLY", "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"], var.service.ingress)
+    error_message = "service.ingress must be INGRESS_TRAFFIC_ALL, INGRESS_TRAFFIC_INTERNAL_ONLY or INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"
+  }
+
+  validation {
+    condition     = can(regex("^[0-9]+(\\.[0-9]+)?s$", var.service.timeout))
+    error_message = "service.timeout must be a duration in seconds, e.g. \"300s\""
   }
 }
 
@@ -104,8 +126,7 @@ variable "vpc_egress" {
 
 variable "encryption_key" {
   type        = string
-  description = "KMS key resource name for CMEK encryption of container instances; if null uses Google-managed key"
-  sensitive   = true
+  description = "KMS key resource name for CMEK encryption of container instances (main service, worker pool and legacy service); if null uses Google-managed key"
 
   validation {
     condition     = var.encryption_key == null || length(trimspace(var.encryption_key)) > 0
@@ -246,7 +267,7 @@ variable "private_check_endpoint" {
 
 variable "invokers" {
   type        = list(string)
-  description = "Principals granted roles/run.invoker on the service, authoritatively for that role. Empty to create no binding"
+  description = "Principals granted roles/run.invoker on the service, authoritatively for that role. Empty to create no binding. With INGRESS_TRAFFIC_ALL, include the Cloud Monitoring service agent (serviceAccount:service-PROJECT_NUMBER@gcp-sa-monitoring-notification.iam.gserviceaccount.com) so the authenticated uptime check can pass"
   default     = []
 
   validation {
@@ -275,6 +296,12 @@ variable "worker_pool_service_account" {
     condition     = var.worker_pool_service_account == "" || can(regex("^[^@]+@[^@]+$", var.worker_pool_service_account))
     error_message = "var.worker_pool_service_account must be a service account email address"
   }
+
+  # Without a service account the worker pool runs as the Compute Engine default SA.
+  validation {
+    condition     = var.worker_pool_image == "" || (var.worker_pool_service_account != "" && !endswith(var.worker_pool_service_account, "-compute@developer.gserviceaccount.com"))
+    error_message = "var.worker_pool_service_account must be set to a dedicated (non-default) service account when var.worker_pool_image is set"
+  }
 }
 
 variable "legacy_service_image" {
@@ -296,5 +323,11 @@ variable "legacy_service_account" {
   validation {
     condition     = var.legacy_service_account == "" || can(regex("^[^@]+@[^@]+$", var.legacy_service_account))
     error_message = "var.legacy_service_account must be a service account email address"
+  }
+
+  # Without a service account the v1 service runs as the Compute Engine default SA.
+  validation {
+    condition     = var.legacy_service_image == "" || (var.legacy_service_account != "" && !endswith(var.legacy_service_account, "-compute@developer.gserviceaccount.com"))
+    error_message = "var.legacy_service_account must be set to a dedicated (non-default) service account when var.legacy_service_image is set"
   }
 }

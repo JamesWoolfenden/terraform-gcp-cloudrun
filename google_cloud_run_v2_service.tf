@@ -11,8 +11,7 @@ resource "google_cloud_run_v2_service" "default" {
   }
 
   template {
-    # request timeout (defaults to 300s if not provided)
-    timeout         = try(var.service.timeout, "300s")
+    timeout         = var.service.timeout
     service_account = var.service_account
     encryption_key  = var.encryption_key
 
@@ -53,7 +52,7 @@ resource "google_cloud_run_v2_service" "default" {
         image           = c["image"]
         depends_on      = c["depends_on"]
         volume_mounts   = try(c["volume_mounts"], [])
-        resource_limits = coalesce(lookup(try(c["resources"], {}), "limits", null), { cpu = "1", memory = "512Mi" })
+        resource_limits = c.resources.limits
         env_entries = concat(
           [for k, v in try(c["env"], {}) : { name = k, value = v, secret = null, version = null, value_source_items = [] }],
           [for secret in try(c["secret_env"], []) : { name = secret.name, value = null, secret = secret.secret, version = secret.version, value_source_items = [1] }]
@@ -228,10 +227,19 @@ resource "google_monitoring_uptime_check_config" "public" {
     }
   }
 
+  # var.invokers rejects allUsers, so the service always requires an
+  # authenticated caller; without an OIDC token the check only ever gets 403.
+  # The caller must include the Cloud Monitoring service agent
+  # (service-PROJECT_NUMBER@gcp-sa-monitoring-notification.iam.gserviceaccount.com)
+  # in var.invokers for the check to pass.
   http_check {
     path    = "/"
     port    = 443
     use_ssl = true
+
+    service_agent_authentication {
+      type = "OIDC_TOKEN"
+    }
   }
 }
 
@@ -291,7 +299,9 @@ resource "google_monitoring_uptime_check_config" "private" {
   }
 }
 
-data "google_project" "current" {}
+data "google_project" "current" {
+  project_id = var.project
+}
 
 resource "google_kms_crypto_key_iam_member" "cloud_run_service_agent" {
   count = var.encryption_key != null ? 1 : 0

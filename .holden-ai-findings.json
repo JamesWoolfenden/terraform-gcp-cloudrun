@@ -19,6 +19,7 @@
       "resource": "gha_job.verify",
       "severity": "HIGH",
       "status": "open",
+      "status_note": "Not fixed: lives under .github/workflows, which this pass may not modify (push token lacks the workflow scope). Pin the reusable workflow to a commit SHA by hand.",
       "suppression_reason": null,
       "title": "HLD_CI_017 suppressed with a non-substantive reason on a push-to-main workflow with contents:write + id-token:write",
       "unresolved_since": "2026-08-02"
@@ -41,6 +42,7 @@
       "resource": "gha_job.pr",
       "severity": "HIGH",
       "status": "open",
+      "status_note": "Not fixed: lives under .github/workflows, which this pass may not modify (push token lacks the workflow scope). Pin the reusable workflow to a commit SHA by hand.",
       "suppression_reason": null,
       "title": "Same unpinned-reusable-workflow pattern as verify.yml, weaker blast radius but same non-substantive suppression",
       "unresolved_since": "2026-08-02"
@@ -108,10 +110,10 @@
       "remediation": "Reject an empty service account whenever the matching image is set (cross-variable validation), and reject the compute default SA email.",
       "resource": "google_cloud_run_v2_worker_pool.main",
       "severity": "HIGH",
-      "status": "open",
+      "status": "fixed",
       "suppression_reason": null,
       "title": "Worker pool and legacy v1 service run as the Compute Engine default service account unless the caller remembers to set one",
-      "unresolved_since": "2026-11-20"
+      "unresolved_since": null
     },
     {
       "confidence": "high",
@@ -130,10 +132,10 @@
       "remediation": "Add binary_authorization { use_default = true } and encryption_key = var.encryption_key to the worker pool; add the run.googleapis.com/binary-authorization and run.googleapis.com/encryption-key annotations to the v1 template.",
       "resource": "google_cloud_run_v2_worker_pool.main",
       "severity": "MEDIUM",
-      "status": "open",
+      "status": "fixed",
       "suppression_reason": null,
       "title": "Worker pool and legacy v1 service skip the Binary Authorization and CMEK controls the module enforces on the main service",
-      "unresolved_since": "2026-11-20"
+      "unresolved_since": null
     },
     {
       "confidence": "high",
@@ -151,10 +153,10 @@
       "remediation": "Map var.service.ingress onto the v1 ingress annotation (all / internal / internal-and-cloud-load-balancing).",
       "resource": "google_cloud_run_service.legacy",
       "severity": "MEDIUM",
-      "status": "open",
+      "status": "fixed",
       "suppression_reason": null,
       "title": "Legacy v1 service ignores var.service.ingress and is internet-reachable even when the v2 service is internal-only",
-      "unresolved_since": "2026-11-20"
+      "unresolved_since": null
     },
     {
       "confidence": "high",
@@ -174,10 +176,10 @@
       "remediation": "Set project_id = var.project on the data source and project = var.project on the worker pool and v1 service.",
       "resource": "data.google_project.current",
       "severity": "MEDIUM",
-      "status": "open",
+      "status": "fixed",
       "suppression_reason": null,
       "title": "CMEK service-agent grant and the optional workloads use the provider's default project, not var.project",
-      "unresolved_since": "2026-11-20"
+      "unresolved_since": null
     },
     {
       "confidence": "high",
@@ -196,11 +198,11 @@
       "remediation": "Add a validation that every containers[].image has a tag other than latest, or a digest.",
       "resource": "variable.containers",
       "severity": "LOW",
-      "status": "open",
+      "status": "fixed",
       "supersedes": "HLD_GCP_200",
       "suppression_reason": null,
       "title": "containers[].image has no :latest/untagged validation, unlike the worker pool and legacy images",
-      "unresolved_since": "2026-11-20"
+      "unresolved_since": null
     },
     {
       "confidence": "medium",
@@ -220,10 +222,10 @@
       "remediation": "Add service_agent_authentication { type = \"OIDC_TOKEN\" } to the public http_check and have the caller grant roles/run.invoker to the Cloud Monitoring service agent.",
       "resource": "google_monitoring_uptime_check_config.public",
       "severity": "MEDIUM",
-      "status": "open",
+      "status": "fixed",
       "suppression_reason": null,
       "title": "Public uptime check is unauthenticated against a service the module forces to require IAM, so it can only fail",
-      "unresolved_since": "2026-11-20"
+      "unresolved_since": null
     },
     {
       "confidence": "high",
@@ -242,10 +244,10 @@
       "remediation": "Add timeout = optional(string, \"300s\") to var.service and resources = optional(object({ limits = optional(map(string)) })) to var.containers.",
       "resource": "google_cloud_run_v2_service.default",
       "severity": "LOW",
-      "status": "open",
+      "status": "fixed",
       "suppression_reason": null,
       "title": "Request timeout and container resource limits are hard-coded because the variable types drop those attributes",
-      "unresolved_since": "2026-11-20"
+      "unresolved_since": null
     },
     {
       "confidence": "high",
@@ -261,10 +263,10 @@
       "remediation": "Remove sensitive = true from variable.encryption_key.",
       "resource": "variable.encryption_key",
       "severity": "INFO",
-      "status": "open",
+      "status": "fixed",
       "suppression_reason": null,
       "title": "encryption_key is marked sensitive although a KMS key resource name is not secret",
-      "unresolved_since": "2026-11-20"
+      "unresolved_since": null
     }
   ],
   "scan_date": "2026-11-20T00:00:00Z",

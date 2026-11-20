@@ -47,12 +47,6 @@ resource "google_vpc_access_connector" "cloudrun" {
   max_instances = 3
 }
 
-locals {
-  # Built from known names, not google_kms_crypto_key.cloudrun.id, so the
-  # module's count on encryption_key is decidable at plan time.
-  cloudrun_key_id = "projects/${var.project}/locations/us-central1/keyRings/cloudrun-keyring/cryptoKeys/cloudrun-key"
-}
-
 # holden:ignore:HLD_TF_026: this is an example
 # holden:ignore:HLD_TF_078
 module "frontend" {

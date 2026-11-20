@@ -1,4 +1,4 @@
-id: HLD_PROPOSED_003
+id: LOCAL_GCP_003
 name: VPC Access Connector must not use the default VPC network
 principle: network-security
 severity: HIGH
@@ -20,6 +20,4 @@ remediation: |
 resources:
   google_vpc_access_connector:
     path: network
-    # requires DSL extension: not_equals operator
-    # not_equals: "default"
-    not_null: true
+    not_equals: "default"

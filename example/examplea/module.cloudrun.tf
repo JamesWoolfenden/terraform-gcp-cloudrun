@@ -11,7 +11,6 @@ resource "google_kms_key_ring" "cloudrun" {
   location = "us-central1"
 }
 
-
 # holden:ignore:HLD_GCP_093: just enough network to drive the module
 # holden:ignore:HLD_GCP_094: just enough network to drive the module
 # holden:ignore:HLD_GCP_303: just enough network to drive the module
@@ -29,12 +28,6 @@ resource "google_vpc_access_connector" "cloudrun" {
   ip_cidr_range = "10.8.0.0/28"
   min_instances = 2
   max_instances = 3
-}
-
-locals {
-  # Built from known names, not google_kms_crypto_key.cloudrun.id, so the
-  # module's count on encryption_key is decidable at plan time.
-  cloudrun_key_id = "projects/${var.project}/locations/us-central1/keyRings/cloudrun-keyring/cryptoKeys/cloudrun-key"
 }
 
 # holden:ignore:HLD_TF_026
